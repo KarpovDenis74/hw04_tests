@@ -8,7 +8,7 @@ from .forms import PostForm
 
 def profile(request, username):
     author = get_object_or_404(User, username=username)
-    post_list = Post.objects.filter(author__username=username)
+    post_list = author.posts.all()
     paginator = Paginator(post_list, 3)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
@@ -23,7 +23,8 @@ def post_view(request, username, post_id):
     post = get_object_or_404(Post, author__username=username, id=post_id)
     count = Post.objects.filter(author__username=username).count
     return render(request, 'posts/post.html',
-    {'author': author, 'count': count, 'post': post})
+        {'author': author, 'count': count, 'post': post}
+    )
 
 
 @login_required
@@ -32,11 +33,13 @@ def new_post(request):
     if request.method != 'POST':
         form = PostForm()
         return render(request, 'posts/new_post.html',
-        {'context': context, 'form': form})
+            {'context': context, 'form': form}
+        )
     form = PostForm(request.POST)
     if not form.is_valid():
         return render(request,
-        'posts/new_post.html', {'context': context, 'form': form})
+            'posts/new_post.html', {'context': context, 'form': form}
+        )
     post = form.save(commit=False)
     post.author = request.user
     post.save()
@@ -46,15 +49,17 @@ def new_post(request):
 @login_required
 def post_edit(request, username, post_id):
     post = get_object_or_404(Post, author__username=username, id=post_id)
-    if request.user.username != post.author.username:
-        return redirect('post', userneme=post.author.username, post_id=post_id)
+    if request.user != post.author:
+        return redirect('post', username=post.author.username, post_id=post_id)
     context = {'title': 'Редактировать запись',
-    'botton': 'Сохранить',
-    'post_id': post.id}
+        'botton': 'Сохранить',
+        'post_id': post.id
+    }
     form = PostForm(request.POST or None, instance=post)
-    if not form.is_valid() or request.method != 'POST':
+    if not form.is_valid():
         return render(request, 'posts/new_post.html',
-        {'post': post, 'context': context, 'form': form})
+            {'post': post, 'context': context, 'form': form}
+        )
     post = form.save(commit=False)
     post.author = request.user
     post.save()
@@ -62,7 +67,7 @@ def post_edit(request, username, post_id):
 
 
 def index(request):
-    post_list = Post.objects.all()
+    post_list = Post.objects.select_related('group').all()
     paginator = Paginator(post_list, 10)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
@@ -79,6 +84,6 @@ def group_posts(request, slug):
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
-    print(paginator.object_list)
     return render(request, "group.html",
-    {'group': group, 'page': page, 'paginator': paginator})
+        {'group': group, 'page': page, 'paginator': paginator}
+    )

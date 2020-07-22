@@ -28,6 +28,7 @@ class Post(models.Model):
                               related_name="post_group",
                               blank=True,
                               null=True)
+    
     def __str__(self):
         return self.text
 
