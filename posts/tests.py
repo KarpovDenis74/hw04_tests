@@ -38,11 +38,12 @@ class TestPosts(TestCase):
         """
         Проверка, что зарегистрированный пользователь может создать пост
         """
+        check_list = {'text': 'test text', 'group': self.group1.id, 'author': self.user.id}
         response = self.client_on.post(
             reverse('new_post'),
             data={
-                'text': 'test text',
-                'group': self.group1.id
+                'text': check_list['text'],
+                'group': check_list['group']
             }
         )
         self.assertRedirects(response,
@@ -53,10 +54,10 @@ class TestPosts(TestCase):
             fetch_redirect_response=True
         )
         self.assertEqual(Post.objects.count(), 1)
-        self.assertTrue(Post.objects.filter(
-            text='test text',
-            group=self.group1.id),
-            msg="Зарегистрированный пользователь может создать пост")
+        post = Post.objects.select_related('group', 'author').first()
+        self.assertEqual(post.text, check_list['text'])
+        self.assertEqual(post.group, self.group1)
+        self.assertEqual(post.author, self.user)
 
     def test_new_post_user_off(self):
         """
@@ -73,12 +74,15 @@ class TestPosts(TestCase):
             msg_prefix='',
             fetch_redirect_response=True
         )
+        post = Post.objects.first()
+        self.assertFalse(post)
 
     def test_view_new_post(self):
         """
         Проверка отображение нового поста
         """
-        self._create_new_post('test text 1')
+        self._create_new_post()
+        self.post = Post.objects.first()
         urls = self._get_url()
         for client in self.clients:
             for url in urls.values():
@@ -91,14 +95,18 @@ class TestPosts(TestCase):
                     msg_prefix='',
                     html=False)
 
-    def _create_new_post(self, text):
-        self.post = Post.objects.create(
-            text=text,
-            group=self.group1,
-            author=self.user
+    def _create_new_post(self):
+        self.text_check = "test Text 1"
+        response = self.client_on.post(
+            reverse('new_post'),
+            data={
+                'text': self.text_check,
+                'group': self.group1.id
+            }
         )
 
-    def _edit_post(self, text):
+    def _edit_post(self):
+        self.text_check = "Измененный пост"
         self.response = self.client_on.post(
             reverse('post_edit',  kwargs={
                     'username': self.user.username, 'post_id': self.post.id}),
@@ -111,19 +119,36 @@ class TestPosts(TestCase):
         Проверка редактирования поста
         зарегистрированным пользователем
         """
-        self._create_new_post('test text 2')
-        self._edit_post(text='Новый текст зарегистрированного пользователя')
+        self._create_new_post()
+        self.post = Post.objects.select_related('author').first()
+        self._edit_post()
         self.assertEqual(self.response.status_code,
             200, msg="Проверка редактирования поста"
         )
+        self.post = Post.objects.select_related('author').first()
+        urls = self._get_url()
+        check_fields = (
+            self.post.text, self.post.author.username)
+        for test_url in urls.values():
+            response = self.client.get(test_url)
+            for check_field in check_fields:
+                self.assertContains(
+                    response,
+                    check_field,
+                    count=None,
+                    status_code=200,
+                    msg_prefix='',
+                    html=False
+                )
 
     def test_edit_post_view(self):
         """
         Проверка отображения отредактированного поста
         зарегистрированным пользователем
         """
-        self._create_new_post('test text 3')
-        self._edit_post(text='Новый текст')
+        self._create_new_post()
+        self.post = Post.objects.select_related('author', 'group').first()
+        self._edit_post()
         self.post = Post.objects.select_related('group').first()
         check_fields = (self.post.text, self.post.author.username)
         urls = self._get_url()
